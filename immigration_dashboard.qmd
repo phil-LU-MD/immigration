@@ -1,0 +1,226 @@
+---
+title: "Immigration Luxembourg"
+author: "Philippe Decker"
+format:
+  dashboard:
+    nav-buttons:
+      - icon: linkedin
+        href: https://www.linkedin.com/in/philippe-decker-74a872ab/
+execute:
+  echo: false
+  message: false
+  warning: false
+---
+
+```{css}
+.card { border: none; }
+.card-body { align-items: flex-start; }
+.card-header { background-color: white; border-bottom: none; }
+```
+
+```{r}
+#| label: setup
+library(readxl)
+library(tidyverse)
+library(janitor)
+
+mois_24 <- read_excel("input/nationalite_mois.xlsx")
+
+demandes_25 <- data.frame(
+  mois = factor(
+    c("janv.", "févr.", "mars", "avr.", "mai", "juin",
+      "juil.", "août", "sept.", "oct.", "nov.", "déc."),
+    levels = c("janv.", "févr.", "mars", "avr.", "mai", "juin",
+               "juil.", "août", "sept.", "oct.", "nov.", "déc.")
+  ),
+  demandes = c(188, 170, 136, 128, 171, 106, 150, 130, 154, 184, 132, 119)
+)
+
+transferts_Dublin <- read_excel("input/transferts_Dublin.xlsx")
+
+Dublin <- transferts_Dublin %>%
+  select(-1) %>%
+  slice(-20) %>%
+  row_to_names(row_number = 1) %>%
+  clean_names() %>%
+  {
+    colnames(.)[2:13] <- 1:12
+    .
+  } %>%
+  mutate(across(where(is.numeric), ~ replace_na(., 0))) %>%
+  pivot_longer(cols = 2:13, names_to = "mois", values_to = "value") %>%
+  mutate(mois = recode(mois,
+    "1" = "janv.", "2" = "févr.", "3" = "mars",
+    "4" = "avr.", "5" = "mai", "6" = "juin",
+    "7" = "juil.", "8" = "août", "9" = "sept.",
+    "10" = "oct.", "11" = "nov.", "12" = "déc.")
+  ) %>%
+  mutate(mois = factor(mois, levels = c("janv.", "févr.", "mars", "avr.", "mai", "juin",
+                                        "juil.", "août", "sept.", "oct.", "nov.", "déc."))) %>%
+  mutate(pays_de_destination = factor(pays_de_destination,
+                                      levels = sort(unique(pays_de_destination), decreasing = TRUE)))
+
+country_order <- Dublin |>
+  group_by(pays_de_destination) |>
+  summarise(total = sum(value, na.rm = TRUE), .groups = "drop") |>
+  arrange(total) |>
+  pull(pays_de_destination) |>
+  as.character()
+
+y_limits <- c("Total", country_order)
+x_limits <- c(levels(Dublin$mois), "Total")
+
+total_by_mois <- Dublin |>
+  group_by(mois) |>
+  summarise(value = sum(value, na.rm = TRUE), .groups = "drop") |>
+  mutate(pays_de_destination = "Total")
+
+total_by_pays <- Dublin |>
+  group_by(pays_de_destination) |>
+  summarise(value = sum(value, na.rm = TRUE), .groups = "drop") |>
+  mutate(mois = factor("Total", levels = x_limits),
+         pays_de_destination = as.character(pays_de_destination))
+
+corner <- tibble(
+  mois = factor("Total", levels = x_limits),
+  pays_de_destination = "Total",
+  value = sum(Dublin$value, na.rm = TRUE)
+)
+
+totals <- bind_rows(total_by_mois, total_by_pays, corner) |>
+  mutate(
+    mois = factor(as.character(mois), levels = x_limits),
+    pays_de_destination = factor(pays_de_destination, levels = y_limits)
+  )
+
+Dublin_plot <- Dublin |>
+  mutate(
+    mois = factor(as.character(mois), levels = x_limits),
+    pays_de_destination = factor(as.character(pays_de_destination), levels = y_limits)
+  )
+```
+
+## Row {height="80px"}
+
+Here comes some text
+
+## Row {height="500px"}
+
+### Demandes de protection internationale par mois (circulaire) {width="50%"}
+
+```{r}
+ggplot(demandes_25, aes(x = mois, y = demandes)) +
+  geom_col(fill = "#DF002C", alpha = 0.6) +
+  scale_x_discrete(expand = c(0, 0.5)) +
+  coord_radial(start = 17 * (pi / 180), inner.radius = 0.09) +
+  labs(
+    title = "Nombre de personnes ayant introduit une demande 
+de protection internationale (2025)",
+    x = "", y = "Demandes"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(panel.grid.major = element_line(color = "#B9B9B8", linetype = "solid", linewidth = 0.2))
+```
+
+### Transferts Dublin III (heatmap) {width="50%"}
+
+```{r}
+ggplot() +
+  geom_tile(data = Dublin_plot,
+            aes(x = mois, y = pays_de_destination, fill = value),
+            color = "white", linewidth = 0.3) +
+  scale_fill_viridis_c(option = "D", name = NULL, breaks = c(0, 5, 10, 15), limits = c(0, 15)) +
+  geom_tile(data = totals,
+            aes(x = mois, y = pays_de_destination),
+            fill = "#78909C", color = "white", linewidth = 0.3) +
+  geom_text(data = totals,
+            aes(x = mois, y = pays_de_destination, label = value),
+            size = 2.6, color = "white", fontface = "bold") +
+  geom_hline(yintercept = 1.5, color = "white", linewidth = 1.2) +
+  geom_vline(xintercept = 12.5, color = "white", linewidth = 1.2) +
+  scale_y_discrete(limits = y_limits) +
+  scale_x_discrete(limits = x_limits) +
+  labs(
+    title = "Transferts en application du règlement Dublin III",
+    subtitle = "Personnes transférées vers des États membres (2025)",
+    x = "", y = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank(),
+    legend.position = "top",
+    legend.direction = "horizontal",
+    legend.margin = margin(0, 0, -6, 0),
+    legend.text = element_text(size = 7)
+  ) +
+  guides(fill = guide_colorbar(barwidth = 5, barheight = 0.35))
+```
+
+## Row {height="450px"}
+
+```{r}
+#| title: "Pays de nationalité des personnes ayant introduit une demande de protection internationale en 2025"
+library(leaflet)
+
+carte_origine <- data.frame(
+  pays = c("Erythrée", "Syrie", "Algérie", "Venezuela", "Afghanistan",
+           "Turquie", "Somalie", "Colombie", "Maroc", "Soudan"),
+  personnes = c(338, 200, 91, 84, 81, 74, 64, 58, 54, 49)
+)
+
+coords <- data.frame(
+  pays = c("Erythrée", "Syrie", "Algérie", "Venezuela", "Afghanistan",
+           "Turquie", "Somalie", "Colombie", "Maroc", "Soudan"),
+  lat  = c(15.18,  34.80, 28.03,   6.42,  33.93, 38.96,  5.15,   4.57, 31.79, 12.86),
+  lng  = c(39.78,  38.99,  1.66, -66.59,  67.71, 35.24, 46.20, -74.30, -7.09, 30.22)
+)
+
+map_data <- carte_origine |>
+  left_join(coords, by = "pays") |>
+  mutate(radius = scales::rescale(sqrt(personnes), to = c(18, 42)))
+
+continents <- data.frame(
+  nom = c("Afrique", "Europe", "Asie", "Amérique du Sud", "Amérique du Nord", "Océanie"),
+  lat  = c(5,   52,  45,  -20,  50,  -25),
+  lng  = c(22,  12,  80,  -60, -100,  133)
+)
+
+leaflet(map_data, height = "400px") |>
+  addProviderTiles(providers$CartoDB.PositronNoLabels) |>
+  addCircleMarkers(
+    lng = ~lng, lat = ~lat,
+    radius = ~radius,
+    color     = "#DF002C",
+    fillColor = "#DF002C",
+    fillOpacity = 0.55,
+    weight = 1.5,
+    popup = ~paste0("<b>", pays, "</b><br>", personnes, " personnes"),
+    label = ~as.character(personnes),
+    labelOptions = labelOptions(
+      noHide    = TRUE,
+      direction = "center",
+      textOnly  = TRUE,
+      style = list(
+        "color"       = "white",
+        "font-weight" = "bold",
+        "font-size"   = "13px"
+      )
+    )
+  ) |>
+  addLabelOnlyMarkers(
+    data = continents,
+    lng = ~lng, lat = ~lat,
+    label = ~nom,
+    labelOptions = labelOptions(
+      noHide    = TRUE,
+      textOnly  = TRUE,
+      style = list(
+        "color"        = "#aaaaaa",
+        "font-size"    = "10px",
+        "font-weight"  = "normal",
+        "font-style"   = "italic"
+      )
+    )
+  )
+```
