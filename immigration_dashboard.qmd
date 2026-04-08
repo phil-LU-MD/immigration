@@ -1,5 +1,6 @@
 ---
-title: "Immigration Luxembourg"
+title: "Statistiques concernant la protection internationale
+au Grand-Duché de Luxembourg"
 author: "Philippe Decker"
 format:
   dashboard:
@@ -102,7 +103,7 @@ Dublin_plot <- Dublin |>
 
 ## Row {height="80px"}
 
-Here comes some text
+Visualisations faites à titre d'exemple sur la base des données publiées en janvier 2026 par la direction générale de l'immigration du Ministère des Affaires intérieures.
 
 ## Row {height="500px"}
 
