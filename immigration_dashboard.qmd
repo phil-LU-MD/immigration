@@ -5,6 +5,8 @@ author: "Philippe Decker"
 format:
   dashboard:
     nav-buttons:
+      - icon: envelope
+        href: mailto:decker.philippe@protonmail.com
       - icon: linkedin
         href: https://www.linkedin.com/in/philippe-decker-74a872ab/
 execute:
